@@ -30,13 +30,10 @@ namespace assignsubmission_byblos\privacy;
 
 use core_privacy\local\metadata\null_provider;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Declares that this subplugin stores no personal data of its own.
  */
 class provider implements null_provider {
-
     /**
      * Return the reason string key for why no data is stored.
      *

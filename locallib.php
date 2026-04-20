@@ -26,8 +26,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 use local_byblos\page;
 use local_byblos\collection;
 use local_byblos\submission as byblos_submission;
@@ -36,7 +34,6 @@ use local_byblos\submission as byblos_submission;
  * Concrete submission plugin class for Byblos portfolios.
  */
 class assign_submission_byblos extends assign_submission_plugin {
-
     /**
      * Human-readable name (used in the submission types admin + UI).
      */
@@ -199,11 +196,11 @@ class assign_submission_byblos extends assign_submission_plugin {
      * @return bool
      */
     public function save_settings(stdClass $data) {
-        $this->set_config('allowedunit',  $data->assignsubmission_byblos_allowedunit ?? 'either');
+        $this->set_config('allowedunit', $data->assignsubmission_byblos_allowedunit ?? 'either');
         $this->set_config('snapshotmode', $data->assignsubmission_byblos_snapshotmode ?? 'snapshot_on_submit');
-        $this->set_config('peerenabled',  !empty($data->assignsubmission_byblos_peerenabled) ? 1 : 0);
-        $this->set_config('peermode',     $data->assignsubmission_byblos_peermode ?? 'manual');
-        $this->set_config('peercount',    (int) ($data->assignsubmission_byblos_peercount ?? 2));
+        $this->set_config('peerenabled', !empty($data->assignsubmission_byblos_peerenabled) ? 1 : 0);
+        $this->set_config('peermode', $data->assignsubmission_byblos_peermode ?? 'manual');
+        $this->set_config('peercount', (int) ($data->assignsubmission_byblos_peercount ?? 2));
         $this->set_config(
             'peervisibility',
             $data->assignsubmission_byblos_peervisibility ?? 'after_submit'
@@ -212,7 +209,7 @@ class assign_submission_byblos extends assign_submission_plugin {
             'peerscoremode',
             $data->assignsubmission_byblos_peerscoremode ?? 'numeric'
         );
-        $this->set_config('checklist',    $data->assignsubmission_byblos_checklist ?? '');
+        $this->set_config('checklist', $data->assignsubmission_byblos_checklist ?? '');
         return true;
     }
 
@@ -355,7 +352,7 @@ class assign_submission_byblos extends assign_submission_plugin {
      * @param bool     $showviewlink Set to true if this plugin wants a "View submission" link.
      * @return string HTML fragment.
      */
-    public function view_summary(stdClass $submission, & $showviewlink) {
+    public function view_summary(stdClass $submission, &$showviewlink) {
         $byblos = byblos_submission::get_by_assign_submission((int) $submission->id);
         if (!$byblos || (!$byblos->pageid && !$byblos->collectionid)) {
             return get_string('nosubmission', 'assignsubmission_byblos');

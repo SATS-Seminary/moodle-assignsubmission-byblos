@@ -29,7 +29,6 @@ namespace assignsubmission_byblos;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class plugin_test extends \advanced_testcase {
-
     /**
      * Plugin version metadata is well-formed.
      */
