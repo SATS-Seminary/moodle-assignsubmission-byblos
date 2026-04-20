@@ -31,6 +31,8 @@ namespace assignsubmission_byblos;
 final class plugin_test extends \advanced_testcase {
     /**
      * Plugin version metadata is well-formed.
+     *
+     * @coversNothing
      */
     public function test_plugin_version_metadata(): void {
         global $CFG;
@@ -45,6 +47,8 @@ final class plugin_test extends \advanced_testcase {
     /**
      * The plugin declares all the lang strings mod_assign enumerates from a
      * subplugin (at minimum: pluginname, default, default_help).
+     *
+     * @coversNothing
      */
     public function test_required_language_strings_exist(): void {
         $this->assertNotEmpty(get_string('pluginname', 'assignsubmission_byblos'));
