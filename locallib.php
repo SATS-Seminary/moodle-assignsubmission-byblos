@@ -29,6 +29,8 @@
 use local_byblos\page;
 use local_byblos\collection;
 use local_byblos\submission as byblos_submission;
+use local_byblos\peer as byblos_peer;
+use local_byblos\comment as byblos_comment;
 
 /**
  * Concrete submission plugin class for Byblos portfolios.
@@ -48,6 +50,9 @@ class assign_submission_byblos extends assign_submission_plugin {
      * @param MoodleQuickForm $mform
      */
     public function get_settings(MoodleQuickForm $mform) {
+        // Site-wide defaults (set by admin via settings.php).
+        $sitedefaults = (array) get_config('assignsubmission_byblos');
+
         // Accepted submission unit.
         $units = [
             'either'     => get_string('unit_either', 'assignsubmission_byblos'),
@@ -82,7 +87,7 @@ class assign_submission_byblos extends assign_submission_plugin {
         );
         $mform->setDefault(
             'assignsubmission_byblos_snapshotmode',
-            $this->get_config('snapshotmode') ?: 'snapshot_on_submit'
+            $this->get_config('snapshotmode') ?: ($sitedefaults['default_snapshot_mode'] ?? 'snapshot_on_submit')
         );
         $mform->addHelpButton(
             'assignsubmission_byblos_snapshotmode',
@@ -97,7 +102,11 @@ class assign_submission_byblos extends assign_submission_plugin {
             'assignsubmission_byblos_peerenabled',
             get_string('peerenabled', 'assignsubmission_byblos')
         );
-        $mform->setDefault('assignsubmission_byblos_peerenabled', (int) $this->get_config('peerenabled'));
+        $peerenableddefault = $this->get_config('peerenabled');
+        if ($peerenableddefault === false || $peerenableddefault === null || $peerenableddefault === '') {
+            $peerenableddefault = (int) ($sitedefaults['peer_default_enabled'] ?? 0);
+        }
+        $mform->setDefault('assignsubmission_byblos_peerenabled', (int) $peerenableddefault);
         $mform->addHelpButton(
             'assignsubmission_byblos_peerenabled',
             'peerenabled',
@@ -117,7 +126,10 @@ class assign_submission_byblos extends assign_submission_plugin {
             get_string('peermode', 'assignsubmission_byblos'),
             $peermodes
         );
-        $mform->setDefault('assignsubmission_byblos_peermode', $this->get_config('peermode') ?: 'manual');
+        $mform->setDefault(
+            'assignsubmission_byblos_peermode',
+            $this->get_config('peermode') ?: ($sitedefaults['peer_default_mode'] ?? 'manual')
+        );
         $mform->addHelpButton('assignsubmission_byblos_peermode', 'peermode', 'assignsubmission_byblos');
         $mform->hideIf('assignsubmission_byblos_peermode', 'assignsubmission_byblos_peerenabled', 'notchecked');
 
@@ -129,7 +141,10 @@ class assign_submission_byblos extends assign_submission_plugin {
             ['size' => 4, 'maxlength' => 3]
         );
         $mform->setType('assignsubmission_byblos_peercount', PARAM_INT);
-        $mform->setDefault('assignsubmission_byblos_peercount', $this->get_config('peercount') ?: 2);
+        $mform->setDefault(
+            'assignsubmission_byblos_peercount',
+            $this->get_config('peercount') ?: (int) ($sitedefaults['peer_default_count'] ?? 2)
+        );
         $mform->addHelpButton('assignsubmission_byblos_peercount', 'peercount', 'assignsubmission_byblos');
         $mform->hideIf('assignsubmission_byblos_peercount', 'assignsubmission_byblos_peermode', 'neq', 'random');
         $mform->hideIf('assignsubmission_byblos_peercount', 'assignsubmission_byblos_peerenabled', 'notchecked');
@@ -148,7 +163,7 @@ class assign_submission_byblos extends assign_submission_plugin {
         );
         $mform->setDefault(
             'assignsubmission_byblos_peervisibility',
-            $this->get_config('peervisibility') ?: 'after_submit'
+            $this->get_config('peervisibility') ?: ($sitedefaults['peer_default_visibility'] ?? 'after_submit')
         );
         $mform->addHelpButton(
             'assignsubmission_byblos_peervisibility',
@@ -355,7 +370,8 @@ class assign_submission_byblos extends assign_submission_plugin {
     public function view_summary(stdClass $submission, &$showviewlink) {
         $byblos = byblos_submission::get_by_assign_submission((int) $submission->id);
         if (!$byblos || (!$byblos->pageid && !$byblos->collectionid)) {
-            return get_string('nosubmission', 'assignsubmission_byblos');
+            return get_string('nosubmission', 'assignsubmission_byblos')
+                . $this->render_peer_review_prompts((int) $submission->userid);
         }
 
         $showviewlink = true;
@@ -380,7 +396,78 @@ class assign_submission_byblos extends assign_submission_plugin {
                 get_string('livereference', 'assignsubmission_byblos') . ')</span>';
         }
 
-        return s($label) . $extra;
+        return s($label) . $extra . $this->render_peer_review_prompts((int) $submission->userid);
+    }
+
+    /**
+     * Render inline links to peer reviews the *current* user is assigned to do.
+     *
+     * Shown only when:
+     *  - Peer review is enabled on this assignment, AND
+     *  - The viewer is the submitter (so they see their own assignments), AND
+     *  - The viewer has at least one pending peer-assignment row.
+     *
+     * @param int $submissionownerid User ID who owns the submission row being viewed.
+     * @return string HTML fragment, possibly empty.
+     */
+    protected function render_peer_review_prompts(int $submissionownerid): string {
+        global $USER;
+
+        if ((int) $this->get_config('peerenabled') !== 1) {
+            return '';
+        }
+        if ((int) $USER->id !== $submissionownerid) {
+            // Only show pending-review prompts to the submitter themselves.
+            return '';
+        }
+
+        $assignid = (int) $this->assignment->get_instance()->id;
+        $queue = byblos_peer::queue_for_reviewer($assignid, (int) $USER->id);
+        if (empty($queue)) {
+            return '';
+        }
+
+        $items = [];
+        foreach ($queue as $row) {
+            if (($row->status ?? 'pending') !== 'pending') {
+                continue;
+            }
+            // Build a link to the review page if a submission has been attached.
+            $linktext = get_string('manage_peer_reviewers', 'assignsubmission_byblos');
+            if (!empty($row->submissionid)) {
+                $url = new moodle_url(
+                    '/local/byblos/review.php',
+                    ['submissionid' => (int) $row->submissionid]
+                );
+                $linktext = get_string('viewsubmission', 'assignsubmission_byblos');
+                $items[] = html_writer::link(
+                    $url,
+                    $linktext,
+                    ['class' => 'btn btn-outline-primary btn-sm', 'target' => '_blank']
+                );
+            } else {
+                // Reviewee hasn't submitted yet — show a disabled-style label.
+                $items[] = html_writer::tag(
+                    'span',
+                    get_string('nosubmission', 'assignsubmission_byblos'),
+                    ['class' => 'badge bg-secondary']
+                );
+            }
+        }
+        if (empty($items)) {
+            return '';
+        }
+
+        // Use existing peer-review heading string and core 'list' separators; no new lang keys.
+        $heading = html_writer::tag(
+            'strong',
+            get_string('peerenabled', 'assignsubmission_byblos')
+        );
+        return html_writer::tag(
+            'div',
+            $heading . ' ' . implode(' ', $items),
+            ['class' => 'assignsubmission_byblos-peer-prompts mt-2']
+        );
     }
 
     /**
@@ -390,6 +477,8 @@ class assign_submission_byblos extends assign_submission_plugin {
      * @return string HTML fragment.
      */
     public function view(stdClass $submission) {
+        global $DB;
+
         $url = $this->get_portfolio_url($submission);
         if ($url === null) {
             return get_string('nosubmission', 'assignsubmission_byblos');
@@ -423,7 +512,119 @@ class assign_submission_byblos extends assign_submission_plugin {
             }
         }
 
-        return html_writer::tag('p', $html);
+        $out = html_writer::tag('p', $html);
+
+        // Inline-comment indicators per anchor.
+        $byblos = byblos_submission::get_by_assign_submission((int) $submission->id);
+        if ($byblos && !empty($byblos->id)) {
+            $out .= $this->render_comment_indicators((int) $byblos->id);
+        }
+
+        // Append peer-review prompts for the current viewer.
+        $out .= $this->render_peer_review_prompts((int) $submission->userid);
+
+        // If peer scoring uses Moodle's advanced-grading rubric, render its definition.
+        if (($this->get_config('peerscoremode') ?: '') === 'rubric') {
+            $assignid = (int) $this->assignment->get_instance()->id;
+            $rubric = byblos_peer::load_rubric_definition($assignid);
+            if ($rubric !== null) {
+                $out .= $this->render_rubric_definition($rubric);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Group comments by anchor key and render counts — one badge per anchored
+     * target so reviewers can see at a glance which sections have feedback.
+     *
+     * @param int $byblossubmissionid local_byblos_submission.id
+     * @return string HTML fragment, possibly empty.
+     */
+    protected function render_comment_indicators(int $byblossubmissionid): string {
+        $comments = byblos_comment::list_for_submission($byblossubmissionid);
+        if (empty($comments)) {
+            return '';
+        }
+
+        $counts = [];
+        foreach ($comments as $c) {
+            $key = (string) ($c->anchorkey ?? '');
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+        if (empty($counts)) {
+            return '';
+        }
+
+        $badges = [];
+        foreach ($counts as $anchor => $n) {
+            $label = $anchor !== '' ? $anchor : get_string('comments');
+            $badges[] = html_writer::tag(
+                'span',
+                s($label) . ' (' . (int) $n . ')',
+                ['class' => 'badge bg-info text-dark me-1']
+            );
+        }
+
+        $heading = html_writer::tag('strong', get_string('comments'));
+        return html_writer::tag(
+            'div',
+            $heading . ' ' . implode(' ', $badges),
+            ['class' => 'assignsubmission_byblos-comment-indicators mt-2']
+        );
+    }
+
+    /**
+     * Render a read-only summary of the assignment's active rubric definition.
+     *
+     * Pulls the structure from local_byblos\peer::load_rubric_definition() (which
+     * proxies Moodle's grading_manager). Used when peerscoremode is 'rubric' so
+     * peer reviewers and graders can see the criteria they're scoring against.
+     *
+     * @param array $rubric ['criteria' => [...], 'maxscore' => float]
+     * @return string HTML fragment.
+     */
+    protected function render_rubric_definition(array $rubric): string {
+        if (empty($rubric['criteria'])) {
+            return '';
+        }
+
+        $rows = [];
+        foreach ($rubric['criteria'] as $criterion) {
+            $cells = [];
+            $cells[] = html_writer::tag('th', s($criterion['description']));
+            foreach ($criterion['levels'] as $lvl) {
+                $cells[] = html_writer::tag(
+                    'td',
+                    html_writer::tag('strong', format_float((float) $lvl['score'], 2)) .
+                        '<br>' . s($lvl['definition'])
+                );
+            }
+            $rows[] = html_writer::tag('tr', implode('', $cells));
+        }
+
+        $table = html_writer::tag(
+            'table',
+            implode('', $rows),
+            ['class' => 'generaltable assignsubmission_byblos-rubric']
+        );
+
+        $heading = html_writer::tag(
+            'strong',
+            get_string('score_rubric', 'assignsubmission_byblos')
+        );
+        $maxscoreline = html_writer::tag(
+            'span',
+            ' (' . format_float((float) ($rubric['maxscore'] ?? 0), 2) . ')',
+            ['class' => 'text-muted small']
+        );
+
+        return html_writer::tag(
+            'div',
+            $heading . $maxscoreline . $table,
+            ['class' => 'assignsubmission_byblos-rubric-wrap mt-3']
+        );
     }
 
     /**
