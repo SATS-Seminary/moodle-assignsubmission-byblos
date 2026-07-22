@@ -27,8 +27,6 @@ namespace assignsubmission_byblos\event;
 use core\event\base;
 use moodle_url;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Fired when a peer reviewer marks their review of a Byblos submission as
  * complete (and any score / rubric is finalised).

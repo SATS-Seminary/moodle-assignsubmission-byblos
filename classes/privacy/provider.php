@@ -55,10 +55,9 @@ use mod_assign\privacy\useridlist;
  * Privacy provider for assignsubmission_byblos.
  */
 class provider implements
-        \core_privacy\local\metadata\provider,
-        \mod_assign\privacy\assignsubmission_provider,
-        \mod_assign\privacy\assignsubmission_user_provider {
-
+    \core_privacy\local\metadata\provider,
+    \mod_assign\privacy\assignsubmission_provider,
+    \mod_assign\privacy\assignsubmission_user_provider {
     /**
      * Describe the personal data this plugin is responsible for.
      *
@@ -66,12 +65,22 @@ class provider implements
      * @return collection
      */
     public static function get_metadata(collection $collection): collection {
-        // We do not own a database table of our own; we delegate storage of
-        // each student's selected portfolio to local_byblos. Declare it as a
-        // linked plugin so the user-facing summary makes that relationship
-        // explicit in the privacy registry.
-        $collection->link_plugin(
-            'local_byblos',
+        // We do not define a table of our own; the student's selection is
+        // written to local_byblos_submission, a table owned by local_byblos.
+        // We still read and delete rows in it directly from this provider, so
+        // declare it here to make that relationship explicit in the registry.
+        $collection->add_database_table(
+            'local_byblos_submission',
+            [
+                'userid'       => 'privacy:metadata:local_byblos_submission:userid',
+                'assignmentid' => 'privacy:metadata:local_byblos_submission:assignmentid',
+                'pageid'       => 'privacy:metadata:local_byblos_submission:pageid',
+                'collectionid' => 'privacy:metadata:local_byblos_submission:collectionid',
+                'snapshotmode' => 'privacy:metadata:local_byblos_submission:snapshotmode',
+                'snapshotid'   => 'privacy:metadata:local_byblos_submission:snapshotid',
+                'timecreated'  => 'privacy:metadata:local_byblos_submission:timecreated',
+                'timemodified' => 'privacy:metadata:local_byblos_submission:timemodified',
+            ],
             'privacy:metadata:local_byblos'
         );
 
@@ -132,13 +141,6 @@ class provider implements
             'local_byblos_submission',
             ['assignsubmissionid' => $submission->id]
         );
-        if (!$byblos) {
-            // Fall back to the legacy column name used in some early dev rows.
-            $byblos = $DB->get_record(
-                'local_byblos_submission',
-                ['submissionid' => $submission->id]
-            );
-        }
         if (!$byblos) {
             return;
         }

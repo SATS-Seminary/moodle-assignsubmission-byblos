@@ -24,11 +24,11 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026041902;
+$plugin->version   = 2026072200;
 $plugin->requires  = 2024100700;            // Moodle 5.0+.
 $plugin->component = 'assignsubmission_byblos';
-$plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '0.1.0';
+$plugin->maturity  = MATURITY_BETA;
+$plugin->release   = '0.2.0';
 
 // Depends on local_byblos for the submission/snapshot/comment/peer services.
 $plugin->dependencies = [

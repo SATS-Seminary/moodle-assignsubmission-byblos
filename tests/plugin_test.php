@@ -73,6 +73,32 @@ final class plugin_test extends advanced_testcase {
     }
 
     /**
+     * get_metadata() builds a valid collection and every summary / field
+     * description it declares resolves to a real lang string. This is what the
+     * privacy registry (admin/tool/dataprivacy) calls, and an exception there
+     * takes down the whole registry page for every component.
+     *
+     * @coversNothing
+     */
+    public function test_privacy_metadata_is_well_formed(): void {
+        $collection = new \core_privacy\local\metadata\collection('assignsubmission_byblos');
+        $collection = \assignsubmission_byblos\privacy\provider::get_metadata($collection);
+
+        $types = $collection->get_collection();
+        $this->assertNotEmpty($types);
+
+        foreach ($types as $type) {
+            $this->assertNotEmpty(get_string($type->get_summary(), 'assignsubmission_byblos'));
+            foreach ($type->get_privacy_fields() as $field => $stringid) {
+                $this->assertNotEmpty(
+                    get_string($stringid, 'assignsubmission_byblos'),
+                    "Missing lang string for privacy field '{$field}'"
+                );
+            }
+        }
+    }
+
+    /**
      * The submission plugin can be enabled per assignment and reports its name.
      *
      * @covers ::get_name
@@ -108,6 +134,7 @@ final class plugin_test extends advanced_testcase {
      */
     public function test_get_form_elements_renders_without_portfolios(): void {
         $this->resetAfterTest();
+        $this->require_byblos_class('local_byblos\page');
 
         [$assign, $student] = $this->build_assignment(['assignsubmission_byblos_enabled' => 1]);
         $this->setUser($student);
@@ -217,10 +244,30 @@ final class plugin_test extends advanced_testcase {
         $plugin = $assign->get_submission_plugin_by_type('byblos');
         $submission = $assign->get_user_submission($student->id, true);
 
-        $this->assertTrue($plugin->is_empty($submission));
+        // Only submission_is_empty() is dependency-free: it inspects the posted
+        // form data. is_empty() reaches into the local_byblos service layer.
         $this->assertTrue($plugin->submission_is_empty((object) []));
         $this->assertTrue($plugin->submission_is_empty((object) ['assignsubmission_byblos_choice' => '']));
         $this->assertFalse($plugin->submission_is_empty((object) ['assignsubmission_byblos_choice' => 'page:1']));
+
+        if (class_exists('local_byblos\submission')) {
+            $this->assertTrue($plugin->is_empty($submission));
+        }
+    }
+
+    /**
+     * Skip the calling test when a local_byblos class it needs is absent.
+     *
+     * CI installs this subplugin on its own, without its local_byblos
+     * dependency, so tests that reach the portfolio service layer opt out there
+     * rather than erroring on a missing class.
+     *
+     * @param string $classname Fully qualified local_byblos class the test needs.
+     */
+    private function require_byblos_class(string $classname): void {
+        if (!class_exists($classname)) {
+            $this->markTestSkipped("local_byblos is not installed ({$classname} missing); test skipped.");
+        }
     }
 
     /**

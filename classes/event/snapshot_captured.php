@@ -27,8 +27,6 @@ namespace assignsubmission_byblos\event;
 use core\event\base;
 use moodle_url;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Fired when an immutable snapshot of the submitted portfolio is captured —
  * either at submit time (snapshot_on_submit mode) or when the submission is

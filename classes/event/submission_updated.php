@@ -27,8 +27,6 @@ namespace assignsubmission_byblos\event;
 use core\event\base;
 use moodle_url;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Fired when a student changes which page or collection is submitted for an
  * assignment they have already linked to a portfolio.
@@ -64,7 +62,8 @@ class submission_updated extends base {
      * @return string
      */
     public function get_description(): string {
-        return "The user with id '{$this->userid}' updated the Byblos portfolio linked to assign submission with id '{$this->objectid}'.";
+        return "The user with id '{$this->userid}' updated the Byblos portfolio linked to " .
+            "assign submission with id '{$this->objectid}'.";
     }
 
     /**

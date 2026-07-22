@@ -27,8 +27,6 @@ namespace assignsubmission_byblos\event;
 use core\event\base;
 use moodle_url;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Fired when a student first selects a portfolio (page or collection) as
  * their submission for an assignment.

@@ -27,8 +27,6 @@ namespace assignsubmission_byblos\event;
 use core\event\base;
 use moodle_url;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Fired when a peer reviewer is allocated to a Byblos submission, whether
  * manually by a teacher or automatically (random / within-groups modes).
